@@ -4,7 +4,7 @@ Analiza związku fenotypu powierzchniowego pojedynczych hematopoetycznych komór
 
 ## Kontekst
 
-Kod analityczny do pracy licencjackiej na kierunku bioinformatyka (Wydział Biochemii, Biofizyki i Biotechnologii, Uniwersytet Jagielloński). Dane pochodzą z badań realizowanych w ramach grantu ERC StemMemo (*„What does your blood remember? The memory of hematopoietic stem cells"*, ID: 101041737).
+Kod analityczny do pracy licencjackiej na kierunku bioinformatyka (Wydział Biochemii, Biofizyki i Biotechnologii, Uniwersytet Jagielloński). Dane pochodzą z badań realizowanych w ramach grantu StG ERC StemMemo *„What does your blood remember? The memory of hematopoietic stem cells"*, ID: 101041737.
 
 ## Struktura repozytorium
 
@@ -25,7 +25,7 @@ Kod analityczny do pracy licencjackiej na kierunku bioinformatyka (Wydział Bioc
 -   niepodobieństwo Bray-Curtis jako miara różnorodności beta
 -   analiza jednoczynnikowa: uogólnione modele liniowe (GLM) z doborem rozkładu do charakteru wskaźnika (Poisson / regresja beta / model liniowy), z korektą Benjaminiego-Hochberga w obrębie każdego wskaźnika
 -   analiza wieloczynnikowa: analiza redundancji oparta na odległościach (db-RDA), z testami permutacyjnymi modelu globalnego i testami marginalnymi markerów
--   wizualizacja: ordynacja PCoA macierzy Bray-Curtis z wektorami populacji (`envfit`)
+-   wizualizacja: PCoA macierzy Bray-Curtis
 
 ## Wymagania
 
@@ -42,8 +42,8 @@ install.packages(c("vegan", "betareg", "ggplot2", "dplyr", "tidyr",
 
 ## Autorka
 
-Hanna Milnikel — praca licencjacka, 2026
+Hanna Milnikel - praca licencjacka, 2026
 
 Promotor: dr hab. Agnieszka Jaźwa-Kusior
 
-Opiekun: dr Krzysztof Szade.
+Opiekun: dr Krzysztof Szade
