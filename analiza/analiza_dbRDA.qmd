@@ -1,0 +1,167 @@
+---
+title: "db-RDA"
+format: pdf
+editor: visual
+---
+
+### db-RDA
+
+```{r}
+run_dbrda <- function(df_log, div_mat_clean, marker_cols, exp_id = NULL) {
+  
+  # ── 1. Wspólne kolonie ─────────────────────────────────────────────────
+  common_ids <- intersect(df_log$id, div_mat_clean$id)
+  cat(sprintf("[%s] wspólne kolonie: %d\n",
+              ifelse(is.null(exp_id), "?", exp_id), length(common_ids)))
+  
+  markers_mat <- df_log %>%
+    filter(id %in% common_ids) %>%
+    arrange(id) %>%
+    select(all_of(marker_cols)) %>%
+    as.matrix()
+  
+  colony_mat <- div_mat_clean %>%
+    filter(id %in% common_ids) %>%
+    arrange(id) %>%
+    select(-id) %>%
+    as.matrix()
+  
+  # ── 2. Usuń NA ────────────────────────────────────────────────────────
+  complete_rows <- complete.cases(markers_mat)
+  cat(sprintf("[%s] Usuwam %d kolonii z NA w markerach\n",
+              ifelse(is.null(exp_id), "?", exp_id), sum(!complete_rows)))
+  markers_mat <- markers_mat[complete_rows, ]
+  colony_mat  <- colony_mat[complete_rows, ]
+  
+  # ── 3. Macierz Bray-Curtis ────────────────────────────────────────────
+  dist_bc <- vegdist(colony_mat, method = "bray")
+  
+  # ── 4. db-RDA ─────────────────────────────────────────────────────────
+  markers_df <- as.data.frame(scale(markers_mat))
+  dbrda_res  <- dbrda(dist_bc ~ ., data = markers_df)
+  
+  # ── 5. Testy istotności ───────────────────────────────────────────────
+  set.seed(123)
+  anova_global     <- anova(dbrda_res, permutations = 9999)
+  anova_marginal   <- anova(dbrda_res, by = "margin", permutations = 9999)
+  r2               <- RsquareAdj(dbrda_res)
+  
+  # ── 6. Wyniki globalne ────────────────────────────────────────────────
+  global_df <- data.frame(
+    exp_id        = ifelse(is.null(exp_id), NA, exp_id),
+    n_colonies    = sum(complete_rows),
+    F_global      = anova_global$F[1],
+    p_global      = anova_global$`Pr(>F)`[1],
+    r2            = r2$r.squared,
+    r2_adj        = r2$adj.r.squared
+  )
+  
+  # ── 7. Wyniki per marker (marginalne) ─────────────────────────────────
+  marginal_df <- anova_marginal %>%
+    as.data.frame() %>%
+    rownames_to_column("marker") %>%
+    filter(marker != "Residual") %>%
+    mutate(
+      exp_id = ifelse(is.null(exp_id), NA, exp_id),
+      sig    = case_when(
+        `Pr(>F)` < 0.001 ~ "***",
+        `Pr(>F)` < 0.01  ~ "**",
+        `Pr(>F)` < 0.05  ~ "*",
+        `Pr(>F)` < 0.1   ~ ".",
+        TRUE             ~ "ns"
+      )
+    ) %>%
+    select(exp_id, marker, Df, SumOfSqs, F, p_value = `Pr(>F)`, sig)
+  
+  return(list(
+    global   = global_df,
+    marginal = marginal_df,
+    model    = dbrda_res
+  ))
+}
+```
+
+Niestety, żeby ten kod zadziałał trzeba uruchomić kolejno:
+
+1\. skrypt exp\_...\_analysis.qmd dla jednego eksperymentu\
+2. chunk z funkcją db-RDA\
+3. chunk z jej wywołaniem dla tego eksperymentu
+
+Nastepnie trzeba zresetować R i powotórzyć to samo dla reszty eksperymentów.
+
+```{r}
+dbrda_9 <- run_dbrda(
+  df_log        = df_log_9,
+  div_mat_clean = div_mat_dbrda %>% mutate(id = id_for_dbrda),
+  marker_cols   = marker_cols_9,
+  exp_id        = "exp9"
+)
+saveRDS(dbrda_9, "dbrda_9.rds")
+```
+
+```{r}
+df_log_mat_2 <- df_log_mat %>%
+  rename(
+    Live_Median    = Median_Live,
+    CD48_Median    = Median_CD48,
+    CD34_Median    = Median_CD34,
+    sca1_Median    = Median_sca1,
+    CD150_Median   = Median_CD150,
+    Lin_Median     = Median_Lin,
+    cKit_Median    = Median_cKit,
+    Neo1_Median    = Median_Neo1,
+    mCherry_Median = Median_mCherry,
+    two_Median     = Median.2,
+    four_Median    = Median.4
+  )
+
+marker_cols_mat_2 <- c('Live_Median', 'CD48_Median', 'CD34_Median', 'sca1_Median', 'CD150_Median', 'Lin_Median', 'cKit_Median', 'Neo1_Median', 'mCherry_Median', 'two_Median', 'four_Median')
+
+dbrda_mat <- run_dbrda(
+  df_log        = df_log_mat_2,
+  div_mat_clean = div_mat_dbrda %>% mutate(id = id_for_dbrda),
+  marker_cols   = marker_cols_mat_2,
+  exp_id        = "exp_mat"
+)
+saveRDS(dbrda_mat, "dbrda_mat.rds")
+```
+
+```{r}
+dbrda_rsm <- run_dbrda(
+  df_log        = df_log_rsm,
+  div_mat_clean = div_mat_dbrda %>% mutate(id = id_for_dbrda),
+  marker_cols   = marker_cols_rsm,
+  exp_id        = "exp_rsm"
+)
+saveRDS(dbrda_rsm, "dbrda_rsm.rds")
+```
+
+Po uruchomieniu db-RDA dla wszystkich eksperymentow i zapisaniu wyników, uruchom ten chunk by je połączyć.
+
+```{r}
+library(writexl)
+
+dbrda_9 <- readRDS("dbrda_9.rds")
+dbrda_mat <- readRDS("dbrda_mat.rds")
+dbrda_rsm <- readRDS("dbrda_rsm.rds")
+
+global_summary <- map_df(
+  list(dbrda_9, dbrda_rsm, dbrda_mat),
+  ~ .x$global
+)
+
+marginal_summary <- map_df(
+  list(dbrda_9, dbrda_rsm, dbrda_mat),
+  ~ .x$marginal
+)
+
+marginal_wide <- marginal_summary %>%
+  select(exp_id, marker, sig) %>%
+  pivot_wider(names_from = exp_id, values_from = sig)
+
+write_xlsx(list(
+  global   = global_summary,
+  marginal = marginal_summary,
+  wide     = marginal_wide
+), "wyniki_dbrda_final.xlsx")
+```

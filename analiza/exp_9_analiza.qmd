@@ -1,0 +1,418 @@
+---
+title: "exp_9 analysis"
+author: "Hanna Milnikel"
+format: html
+editor: visual
+---
+
+Przed uruchomieniem skryptu zresetuj środowisko (Session -\> Restart R).
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(uwot)
+library(dbscan)
+library(tibble)
+library(vegan)
+library(readr)
+```
+
+Poniższy chunk wykonanała Maya Śliwa
+
+```{r}
+cyto_cols_9 <- c(
+  "all_events",
+  "singlets_cells",
+  "Live_dead_Ly6C_subset",
+  "FSC_A_medium_SSC_A_high",
+  "FSC_low.SSC_low",
+  "FSChigh_SSChigh",
+  "FSClow_SSC_high",
+  "SSC_low_FSC_high",
+  "cKit_neg",
+  "non_mielo_wide",
+  "Ter119_pos_CD16_32neg",
+  "CD71high_Ter119neg",
+  "CD71pos_Ter119low",
+  "CD71pos_Ter119neg",
+  "low6c_mono",
+  "CD16_32pos_CD71hi",
+  "CD16_32neg_CD71pos",
+  "CD16_32neg_CD71neg",
+  "CD16_32neg_CD71hi",
+  "Ter119neg_CD105pos",
+  "Ter119pos_CD105pos",
+  "Ter119pos_CD105neg",
+  "Ter119neg_CD105neg",
+  "CD16_32low_CD71low",
+  "neutrophils",
+  "monocytes_1",
+  "FcR_hi",
+  "FcR_low",
+  "FcR_neg",
+  "non_mielo",
+  "early_baso",
+  "late_baso",
+  "polychrom",
+  "proerythro",
+  "Q1_CD150neg_CD105pos",
+  "Q2_CD150pos_CD105pos",
+  "Q3_CD150pos_CD105neg",
+  "Q4_CD150neg_CD105neg",
+  "cKit_pos",
+  "CD150pos_CD16_32neg",
+  "GMP_1",
+  "GMP_2",
+  "non_GMP",
+  "CMP_1",
+  "CD71pos_CD34neg",
+  "CMP_1_CD71pos_CD105pos",
+  "CMP_1_CD71pos_CD105neg",
+  "CFUE",
+  "preCFUE",
+  "preGM",
+  "preMegE",
+  "CMP_2",
+  "trombo"
+)
+
+# wczytanie danych
+df <- read_excel("dane/ERC_aim1_exp9_summary.xlsx")
+df$id <- 1:nrow(df)
+
+# OBIEKT R z samą cytometrią
+df_cyto <- df %>%
+  select(id, all_of(cyto_cols_9))
+
+# normalizacja % of live dla wszystkich
+library(dplyr)
+denom <- "Live_dead_Ly6C_subset"
+gate_cols <- setdiff(colnames(df_cyto), denom)
+
+df_cyto_pct_live <- df_cyto %>%
+  mutate(
+    across(
+      all_of(gate_cols),
+      ~ ifelse(.data[[denom]] == 0 | is.na(.data[[denom]]), NA_real_, (.x / .data[[denom]]) * 100),
+      .names = "{.col}_pct_live"
+    )
+  )
+
+# normalizacja % of live dla zgatowanych populacji
+gated_populations_9 <- c(
+  "FSC_A_medium_SSC_A_high",
+  "FSC_low.SSC_low",
+  "FSChigh_SSChigh",
+  "FSClow_SSC_high",
+  "SSC_low_FSC_high",
+  "cKit_neg",
+  "non_mielo_wide",
+  "Ter119_pos_CD16_32neg",
+  "CD71high_Ter119neg",
+  "CD71pos_Ter119low",
+  "CD71pos_Ter119neg",
+  "low6c_mono",
+  "CD16_32pos_CD71hi",
+  "CD16_32neg_CD71pos",
+  "CD16_32neg_CD71neg",
+  "CD16_32neg_CD71hi",
+  "Ter119neg_CD105pos",
+  "Ter119pos_CD105pos",
+  "Ter119pos_CD105neg",
+  "Ter119neg_CD105neg",
+  "CD16_32low_CD71low",
+  "neutrophils",
+  "monocytes_1",
+  "FcR_hi",
+  "FcR_low",
+  "FcR_neg",
+  "non_mielo",
+  "early_baso",
+  "late_baso",
+  "polychrom",
+  "proerythro",
+  "Q1_CD150neg_CD105pos",
+  "Q2_CD150pos_CD105pos",
+  "Q3_CD150pos_CD105neg",
+  "Q4_CD150neg_CD105neg",
+  "cKit_pos",
+  "CD150pos_CD16_32neg",
+  "GMP_1",
+  "GMP_2",
+  "non_GMP",
+  "CMP_1",
+  "CD71pos_CD34neg",
+  "CMP_1_CD71pos_CD105pos",
+  "CMP_1_CD71pos_CD105neg",
+  "CFUE",
+  "preCFUE",
+  "preGM",
+  "preMegE",
+  "CMP_2",
+  "trombo"
+)
+
+denom <- "Live_dead_Ly6C_subset"
+df_gated_pct_live <- df_cyto %>%
+  mutate(
+    across(
+      all_of(gated_populations_9),
+      ~ ifelse(
+        .data[[denom]] == 0 | is.na(.data[[denom]]),
+        NA_real_,
+        (.x / .data[[denom]]) * 100
+      ),
+      .names = "{.col}_pct_live"
+    )
+  ) %>%
+  select(id, ends_with("_pct_live"))
+```
+
+```{r}
+df_9 <- df
+df_9$id <- c(1:nrow(df_9))
+marker_cols_9 <- grep("_Median$", colnames(df_9), value = TRUE)
+
+df_log_9 <- df_9
+df_log_9[marker_cols_9] <- log10(df_9[marker_cols_9])
+```
+
+```{r}
+final_gates_9 <- c("CD16_32pos_CD71hi","CD16_32neg_CD71pos","CD16_32neg_CD71neg",
+            "Ter119neg_CD105pos","Ter119pos_CD105pos","Ter119pos_CD105neg","Ter119neg_CD105neg",
+            "CD16_32low_CD71low","neutrophils","FcR_hi","FcR_low","FcR_neg",
+            "Q1_CD150neg_CD105pos","Q2_CD150pos_CD105pos","Q3_CD150pos_CD105neg","Q4_CD150neg_CD105neg",
+            "GMP_1","GMP_2","CFUE","preCFUE","preGM","preMegE")          # ERC_4_2
+
+build_partition <- function(comp_full, gates, suffix = "_pct_live") {
+  gates_full <- paste0(gates, suffix)
+  missing <- setdiff(gates_full, colnames(comp_full))
+  if (length(missing)) stop("Brak w macierzy: ", paste(missing, collapse=", "))
+  m  <- comp_full[, gates_full, drop = FALSE]
+  rs <- rowSums(m, na.rm = TRUE)
+  message("rowSums: min=", round(min(rs),3), " max=", round(max(rs),3))  # ~1 lub ~100 = OK
+  result <- sweep(m, 1, rs, "/")
+  result$id <- comp_full$id    # ← dodaj id z oryginalnego df
+  result <- result[, c("id", gates_full)]  # ← id jako pierwsza kolumna
+  return(result)
+}
+
+comp9_clean <- build_partition(df_gated_pct_live, final_gates_9)
+```
+
+```{r}
+div_mat_2 <- comp9_clean %>%
+  mutate(across(-id, ~ .x / 100)) %>%
+  column_to_rownames("id") %>%
+  as.data.frame()
+
+div_for_dbrda <- div_mat_2 %>%
+  rownames_to_column("id") %>%
+  mutate(id = as.integer(id)) %>%
+  na.omit()
+
+id_for_dbrda    <- div_for_dbrda$id
+div_mat_dbrda   <- div_for_dbrda %>% select(-id)
+
+shannon_per_colony <- diversity(div_mat_dbrda, index = "shannon")
+
+shannon_lookup <- data.frame(
+  id = id_for_dbrda,
+  Shannon = shannon_per_colony
+)
+```
+
+```{r}
+simpson_per_colony <- diversity(div_mat_dbrda, index = "simpson")
+
+simpson_lookup <- data.frame(
+  id = id_for_dbrda,
+  Simpson = simpson_per_colony
+)
+
+diversity_df <- shannon_lookup %>%
+  left_join(simpson_lookup, by = "id")
+```
+
+```{r}
+richness_values <- rowSums(div_mat_dbrda > 0)
+
+richness_lookup <- data.frame(
+  id = id_for_dbrda,
+  Richness = richness_values
+)
+
+diversity_df <- diversity_df %>%
+  left_join(richness_lookup, by = "id")
+```
+
+```{r}
+# Pielou's evenness J = Shannon / log(Richness)
+evenness_values <- shannon_per_colony / log(richness_values)
+# Handle cases where richness = 1 (division by log(1) = 0)
+evenness_values[richness_values == 1] <- NA
+
+evenness_lookup <- data.frame(
+  id = id_for_dbrda,
+  Evenness = evenness_values
+)
+
+diversity_df <- diversity_df %>%
+  left_join(evenness_lookup, by = "id")
+```
+
+```{r}
+bray_dist <- vegdist(div_mat_dbrda, method = "bray")
+
+# PCoA (Principal Coordinates Analysis) for visualization
+pcoa_result <- cmdscale(bray_dist, k = 2, eig = TRUE)
+
+# Calculate variance explained by each axis
+variance_explained <- pcoa_result$eig / sum(pcoa_result$eig[pcoa_result$eig > 0]) * 100
+
+pcoa_df <- data.frame(
+  PCoA1 = pcoa_result$points[, 1],
+  PCoA2 = pcoa_result$points[, 2],
+  id = id_for_dbrda
+)
+
+pcoa_df <- pcoa_df %>%
+  left_join(df_log_9 %>% select(id, all_of(marker_cols_9)), by = "id")
+
+ggplot(pcoa_df, aes(x = PCoA1, y = PCoA2))+
+  geom_point(size= 1.5, alpha = 0.8)
+```
+
+```{r}
+pcoa_df_shannon <- pcoa_df %>%
+  left_join(shannon_lookup, by = 'id')
+
+ggplot(pcoa_df_shannon, aes(x = PCoA1, y = PCoA2, color = Shannon)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  scale_color_viridis_c(option = "magma", na.value = "grey80") +
+  theme_minimal() +
+  labs(
+    x = paste0("PCoA1 (", round(variance_explained[1], 1), "%)"),
+    y = paste0("PCoA2 (", round(variance_explained[2], 1), "%)"),
+    title = "Colony composition space coloured by Shannon"
+  )
+```
+
+```{r}
+dom_df <- div_for_dbrda %>%
+  mutate(
+    dominant = colnames(div_mat_dbrda)[apply(div_mat_dbrda, 1, which.max)],
+    dom_pct  = apply(div_mat_dbrda, 1, max)
+  ) %>%
+  select(id, dominant, dom_pct)
+
+pcoa_df_2 <- pcoa_df %>%
+  left_join(dom_df, by = "id")
+
+ggplot(pcoa_df_2, aes(x = PCoA1, y = PCoA2, color = dominant)) +
+  geom_point(size = 1.5, alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Dominant population per colony")
+```
+
+GLM
+
+```{r}
+# run_diversity_glm.R
+# Uniwariacki przesiew: alfa-roznorodnosc kolonii ~ marker (index sorting),
+# z doborem rozkladu odpowiedzi do typu metryki.
+#
+#   - Richness -> zliczenie (0,1,2,...)   -> Poisson
+#   - Evenness -> ciagle w (0,1)          -> regresja beta
+#   - Simpson  -> ciagle w (0,1)          -> regresja beta
+#   - Shannon  -> ciagle, ~symetryczne    -> model liniowy (lm)
+
+library(betareg)   # regresja beta
+library(broom)     # tidy()
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tibble)
+library(moments)
+
+# Smithson & Verkuilen: sciagniecie dokladnych 0/1 do otwartego (0,1) dla bety
+squeeze01 <- function(y) {
+  n <- sum(!is.na(y))
+  (y * (n - 1) + 0.5) / n
+}
+
+# Dopasowanie JEDNEGO modelu: jedna metryka ~ jeden marker (+ blok)
+fit_one <- function(df, response, marker,
+                    family = c("count", "beta", "gaussian"),
+                    block = "experiment") {
+  family <- match.arg(family)
+  rhs <- if (!is.null(block) && block %in% names(df))
+           paste(marker, "+", block) else marker
+  f   <- as.formula(paste(response, "~", rhs))
+  dat <- df[stats::complete.cases(df[, all.vars(f)]), , drop = FALSE]
+
+  if (family == "count") {
+    # Poisson; dyspersja Pearsona jako diagnostyka (~1 = OK, brak naddyspersji)
+    m    <- glm(f, data = dat, family = poisson())
+    disp <- sum(residuals(m, type = "pearson")^2) / df.residual(m)
+    out  <- broom::tidy(m) %>% filter(term == marker) %>%
+            mutate(model = "poisson", dispersion = disp, diag = NA_real_)
+  }
+
+  if (family == "beta") {
+    # regresja beta; dyspersja Pearsona (~1 = dobre dopasowanie)
+    dat[[response]] <- squeeze01(dat[[response]])
+    m   <- betareg::betareg(f, data = dat)
+    pr_disp <- sum(residuals(m, type = "pearson")^2) / m$df.residual
+    out <- broom::tidy(m) %>%
+           filter(term == marker, component == "mean") %>%
+           dplyr::select(-component) %>%
+           mutate(model = "beta", dispersion = pr_disp, diag = NA_real_)
+  }
+
+  if (family == "gaussian") {
+    # model liniowy; skosnosc (dispersion) i kurtoza (diag) reszt
+    # |skewness| < ~0.5 -> praktycznie symetryczne. Shapiro pominiety - nadwrazliwy
+    # przy duzym n; ocene normalnosci opieramy na skosnosci/kurtozie (lekkie odchylenie).
+    m    <- lm(f, data = dat)
+    skew <- skewness(residuals(m))
+    kurt <- kurtosis(residuals(m))
+    out  <- broom::tidy(m) %>% filter(term == marker) %>%
+            mutate(model = "gaussian", dispersion = skew, diag = kurt)
+  }
+
+  out %>%
+    mutate(response = response, marker = marker, n = nrow(dat)) %>%
+    dplyr::select(response, marker, model, estimate, std.error,
+           statistic, p.value, dispersion, diag, n)
+}
+
+# Petla po wszystkich kombinacjach metryka x marker + korekta BH
+run_diversity_glm <- function(df, markers,
+                              plan = tibble::tribble(
+                                ~response,  ~family,
+                                "Richness", "count",
+                                "Evenness", "beta",
+                                "Simpson",  "beta",
+                                "Shannon",  "gaussian"),
+                              block = "experiment") {
+  tidyr::expand_grid(plan, marker = markers) %>%
+    purrr::pmap_dfr(function(response, family, marker)
+      fit_one(df, response, marker, family, block = block)) %>%
+    group_by(response) %>%
+    mutate(p_adj = p.adjust(p.value, method = "BH")) %>%
+    ungroup()
+}
+```
+
+```{r}
+glm_input_9 <- diversity_df %>%
+  left_join(df_log_9 %>% dplyr::select(id, all_of(marker_cols_9)), by = "id")
+```
+
+```{r}
+res_9 <- run_diversity_glm(glm_input_9, markers = marker_cols_9, block = NULL)
+write_csv(res_9, file = 'wyniki_regresja_9.csv')
+```
