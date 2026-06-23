@@ -14,8 +14,7 @@ Kod analityczny do pracy licencjackiej na kierunku bioinformatyka (Wydział Bioc
 │   ├── exp_9_analiza.qmd        # analiza exp_9 (n=173)
 │   ├── exp_mat_analiza.qmd      # analiza exp_mat (n=187)
 │   ├── analiza_dbrda.qmd        # db-RDA dla wszystkich eksperymentów
-│   └── dane/                    # dane wejściowe (patrz: Dostępność danych)
-├── wyniki/                      # ryciny i tabele generowane przez .qmd
+│   └── dane/                    # dane wejściowe
 └── README.md
 ```
 
