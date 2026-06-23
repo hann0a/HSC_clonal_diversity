@@ -12,12 +12,15 @@ library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(uwot)
 library(dbscan)
 library(tibble)
 library(vegan)
 library(readr)
 ```
+
+## Wczytanie danych
+
+### preprocessing danych z bramkowania
 
 Poniższy chunk wykonanała Maya Śliwa
 
@@ -144,6 +147,8 @@ df_gated_pct_live <- df_cyto %>%
   select(id, ends_with("_pct_live"))
 ```
 
+### preprocessing danych z index sortingu
+
 ```{r}
 df_mat$id <- c(1:nrow(df_mat))
 head(df_mat)
@@ -169,6 +174,8 @@ df_log_mat <- df_mat
 df_log_mat[marker_cols_mat] <- log10(df_mat[marker_cols_mat])
 ```
 
+### wybranie finalnych bramek
+
 ```{r}
 final_gates_mat <- c("FcR_hi", "FcR_low", "FcR_neg", "neutrophils", 
              "Q1..CD150....CD105.", "Q2..CD150....CD105.", "Q3..CD150....CD105.", "Q4..CD150....CD105.", "GMP_1", "GMP_2", "CMP_1", "trombo")
@@ -187,6 +194,8 @@ build_partition <- function(comp_full, gates, suffix = "_pct_live") {
 
 comp_mat_clean <- build_partition(df_gated_pct_live, final_gates_mat)
 ```
+
+### alpha diveristy
 
 ```{r}
 div_mat_2 <- comp_mat_clean %>%
@@ -249,6 +258,8 @@ diversity_df <- diversity_df %>%
   left_join(evenness_lookup, by = "id")
 ```
 
+### beta diveristy i PCoA
+
 ```{r}
 bray_dist <- vegdist(div_mat_dbrda, method = "bray")
 
@@ -303,7 +314,7 @@ ggplot(pcoa_df_2, aes(x = PCoA1, y = PCoA2, color = dominant)) +
   labs(title = "Dominant population per colony")
 ```
 
-GLM
+### GLM
 
 ```{r}
 # run_diversity_glm.R

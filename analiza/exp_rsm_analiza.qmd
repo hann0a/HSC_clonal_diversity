@@ -11,12 +11,17 @@ library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(uwot)
 library(dbscan)
 library(tibble)
 library(vegan)
 library(readr)
 ```
+
+## Wczytanie danych
+
+### preprocessing danych z bramkowania
+
+Poniższy chunk wykonała Maya Śliwa
 
 ```{r}
 cyto_cols_RSM <- c(
@@ -141,6 +146,8 @@ df_gated_pct_live <- df_cyto %>%
   select(id, ends_with("_pct_live"))
 ```
 
+### preprocessing danych z index sortingu
+
 ```{r}
 df_rsm <- df
 df_rsm$id <- c(1:nrow(df_rsm))
@@ -164,7 +171,7 @@ for (m in marker_cols_rsm) {
 }
 ```
 
-Finalne bramki
+### wybranie finalnych bramek
 
 ```{r}
 final_gates_rsm <- c("FcR_hi", "FcR_low", "FcR_neg", "neutrophils", 
@@ -185,6 +192,8 @@ build_partition <- function(comp_full, gates, suffix = "_pct_live") {
 
 comp_rsm_clean <- build_partition(df_gated_pct_live, final_gates_rsm)
 ```
+
+### alpha diveristy
 
 ```{r}
 div_mat_2 <- comp_rsm_clean %>%
@@ -247,6 +256,8 @@ diversity_df <- diversity_df %>%
   left_join(evenness_lookup, by = "id")
 ```
 
+### beta diveristy i PCoA
+
 ```{r}
 bray_dist <- vegdist(div_mat_dbrda, method = "bray")
 
@@ -301,7 +312,7 @@ ggplot(pcoa_df_2, aes(x = PCoA1, y = PCoA2, color = dominant)) +
   labs(title = "Dominant population per colony")
 ```
 
-Wizualizacja
+### Rycina 1. z pracy
 
 ```{r}
 library(patchwork)
@@ -402,7 +413,7 @@ combined <- pA + pB + plot_layout(ncol = 2)
 ggsave("pcoa_rsm_combined.png", combined, width = 11, height = 5, dpi = 300)
 ```
 
-GLM
+### GLM
 
 ```{r}
 # run_diversity_glm.R
